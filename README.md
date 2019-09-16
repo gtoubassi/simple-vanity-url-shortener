@@ -39,7 +39,7 @@ We now will create an AWS Lambda function to perform the redirect.
 
 We need to make the lambda available via http.  At the top of the lambda function configuration page, click the **Add trigger** button and select the "Application Load Balancer" option.  For the load balancer name, click the little blue link above the field to create a new one.  Give it a name, and make sure it is "internet facing".  The "listeners" section should be pre-filled in with HTTP/80.  Click next, then choose a new security group.  For Target Group create a new target group with a "target type" of lambda, and select your lambda.  When you are done it will take awhile for the new LB to go from "provisioning" to "active" (10 minutes or more).  But now if you go back to your lambda config page you will see the Application Load Balancer is there as a trigger.
 
-When the application load balancer finally is provisioned you will be able to hit the url listed on its config (something like YourLoadBalancerName-20742898761.us-east-1.elb.amazonaws.com).  You should now be able to access the redirector by hitting YourLoadBalancerName-2072409351.us-east-1.elb.amazonaws.com**/new**, and it should take you to the form.
+When the application load balancer finally is provisioned you will be able to hit the url listed on its config (something like YourLoadBalancerName-20742898761.us-east-1.elb.amazonaws.com).  You should now be able to access the redirector by hitting YourLoadBalancerName-2072409351.us-east-1.elb.amazonaws.com/**new**, and it should take you to the form.
 
 #### Step 5: Custom Domain
 
