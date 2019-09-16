@@ -1,6 +1,6 @@
 # Simple Url Shortener
 
-This describes how to create a dirt simple vanity url shortener using AWS Lambda for serving, Google Forms for the UI (i.e. creating new vanity urls), and Google Sheets as the backend.  This document can be found via my personal ursl shortener at [garrick.fun/howto](http://garrick.fun/howto)
+This describes how to create a dirt simple vanity url shortener using AWS Lambda for serving, Google Forms for the UI (i.e. creating new vanity urls), and Google Sheets as the backend.  This document can be found via my personal url shortener at [garrick.fun/howto](http://garrick.fun/howto)
 
 ### Step 1: The "Backend"
 
