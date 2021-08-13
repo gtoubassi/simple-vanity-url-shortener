@@ -34,6 +34,7 @@ We now will create an AWS Lambda function to perform the redirect.
     1. **SERVICE_ACCOUNT_EMAIL** is the email address of the service account from the downloaded json (`client_email` field)
     2. **SERVICE_ACCOUNT_PK** is the `private key` field from the json file.  Its important to make sure the newlines are represented as \n strings, because they will be turned into newlines by the lambda.  So you can literally just grab the value from the json (without the double quotes).
     3. **SHEET_ID** is the ID of the Google Sheet for your backend (that the form dumps into).  It will be something like `1nuTiZnCC2dnn2lHY5_M1fg3bM1OMXTj71Iz5h4`.
+    4. [Optional] **NO_MATCH_REDIR_URL** is the url to redirect in the case of a miss.  It is recommended that you actually redirect to the form creation url so that the easiest way to add a new vanity url is to just go to garrick.fun/mynewurl and let it redirect you to the form.  And the cool thing is if you cook that URL the right way you can have it prepopulate the vanity path into the form (e.g. 'mynewurl' will already be in the form!).  The way to do this is go to your form and from the triple-dot menu in the upper right, select "Get pre-filled link".  Fill the vanity path with **SHORTURL**, and click the "Get link" button.  The redirector will replace SHORTURL with whatever path was specified on the url.
 
 ### Step 4: Put your Lambda on the internet
 
