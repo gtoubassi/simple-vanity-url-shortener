@@ -42,6 +42,16 @@ We need to make the lambda available via http.  At the top of the lambda functio
 
 When the application load balancer finally is provisioned you will be able to hit the url listed on its config (something like YourLoadBalancerName-20742898761.us-east-1.elb.amazonaws.com).  You should now be able to access the redirector by hitting YourLoadBalancerName-2072409351.us-east-1.elb.amazonaws.com/**new**, and it should take you to the form.
 
-#### Step 5: Custom Domain
+### Step 5: Custom Domain
 
 Now you can buy a cool domain name like `lotsa.fish` (available at the time of this writing!), and using domain forwarding, have it forward (including the path!) over to your LB url.  Now when you go to `lotsa.fish/new` you can create new URLs.
+
+### Step 6: Add HTTPS support
+
+You will want to add HTTPS support given increasing demand for it from browsers (e.g. Safari won't follow http links for random domains).  To do this involves three steps:
+
+1. **Add an HTTPS listener to our load balancer.**  First, go to the Load Balancer section of the aws console (search for load balancer and click the EC2 Load Balancer feature, not Lightsail).  You should see your load balancer in the list.  Select it and then select the "Listeners" tab.  You should see the HTTP/80 listener.  Add one for HTTPs.  You will need to supply a certificate.  I used the Amazon Certificate Manager (ACM) to create one on my domain (having to verify the domain from Google Domains by emitting a CNAME with a magic value).  You will also need to specify a security policy and you should just be able to use the default.
+2. **Add an HTTPS trigger to our lambda function.**  Now you can go over to your lambda function configuration page, and click **Add trigger** and repeat the process described above in step 4 except this time, of course, specify HTTPS as your trigger.  I entered the host but left the path blank.
+3. **If you are using domain forwarding, making sure HTTPS is forwarded.**  For example on Google Domains, you need to explicitly enable this, as described in [this support article](https://support.google.com/domains/answer/4522141?hl=en).
+
+
