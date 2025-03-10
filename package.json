@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "google-spreadsheet": "^3.1.15"
+    "google-spreadsheet": "^4.1.4"
   }
 }
