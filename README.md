@@ -26,32 +26,40 @@ Now you can share the Sheet (view only) with the Service Account (via it's email
 
 We now will create an AWS Lambda function to perform the redirect.
 
-1. First clone this repo, and download the dependencies by running `npm install`
-2. From within the directory, create a zip file of the resources with `zip -r ../lambda-src.zip *`
-3. Go to the [lambda section](http://console.aws.amazon.com/lambda) of the AWS console.  And create a new lambda function via the **Create function** button.  Select the "Author from Scratch", and give it a name.  No permissions are needed.
-4. In the function configuration page (which you should end up on), in the **Function Code** section, upload the zip file via the "code entry type" field.
-5. In the **Environment Variables** section, you'll need to specify three env variables that the script depends on:
+1. First clone this repo, and download the dependencies by running `npm install --omit=dev`
+2. From within the directory, create a zip file of the resources with `zip -r ../lambda-src.zip index.mjs package.json package-lock.json node_modules`
+3. Go to the [lambda section](http://console.aws.amazon.com/lambda) of the AWS console.  And create a new lambda function via the **Create function** button.  Select the "Author from Scratch", give it a name, and choose the **Node.js 24.x** runtime.  No permissions are needed.
+4. In the function configuration page (which you should end up on), in the **Code** section, upload the zip file via **Upload from > .zip file**.  The handler should be `index.handler` (Lambda finds `index.mjs` automatically).  The code is an ES module because `google-spreadsheet` v5 depends on ESM-only packages that the Lambda runtime won't `require()`.
+5. Under **Configuration > General configuration**, bump the timeout to 10 seconds and memory to 256 MB.  The defaults (3 seconds, 128 MB) are too tight for a cold start that authenticates with Google and reads the sheet.
+6. In the **Environment Variables** section, you'll need to specify three env variables that the script depends on:
     1. **SERVICE_ACCOUNT_EMAIL** is the email address of the service account from the downloaded json (`client_email` field)
     2. **SERVICE_ACCOUNT_PK** is the `private key` field from the json file.  Its important to make sure the newlines are represented as \n strings, because they will be turned into newlines by the lambda.  So you can literally just grab the value from the json (without the double quotes).
     3. **SHEET_ID** is the ID of the Google Sheet for your backend (that the form dumps into).  It will be something like `1nuTiZnCC2dnn2lHY5_M1fg3bM1OMXTj71Iz5h4`.
     4. [Optional] **NO_MATCH_REDIR_URL** is the url to redirect in the case of a miss.  It is recommended that you actually redirect to the form creation url so that the easiest way to add a new vanity url is to just go to garrick.fun/mynewurl and let it redirect you to the form.  And the cool thing is if you cook that URL the right way you can have it prepopulate the vanity path into the form (e.g. 'mynewurl' will already be in the form!).  The way to do this is go to your form and from the triple-dot menu in the upper right, select "Get pre-filled link".  Fill the vanity path with **SHORTURL**, and click the "Get link" button.  The redirector will replace SHORTURL with whatever path was specified on the url.
+    5. [Optional] **CACHE_TTL_SECONDS** controls how long the vanity url mappings are cached in memory (default 300).  The sheet is only re-read when the cache expires, so a burst of requests (bots find everything eventually) doesn't blow through the Google Sheets API's per-minute read quota.  If a re-read fails, the last good copy keeps being served.  This also means a newly added vanity url can take up to 5 minutes to start working.
 
-### Step 4: Put your Lambda on the internet
+### Step 4: Get a domain and a certificate
 
-We need to make the lambda available via http.  At the top of the lambda function configuration page, click the **Add trigger** button and select the "Application Load Balancer" option.  For the load balancer name, click the little blue link above the field to create a new one.  Give it a name, and make sure it is "internet facing".  The "listeners" section should be pre-filled in with HTTP/80.  Click next, then choose a new security group.  For Target Group create a new target group with a "target type" of lambda, and select your lambda.  When you are done it will take awhile for the new LB to go from "provisioning" to "active" (10 minutes or more).  But now if you go back to your lambda config page you will see the Application Load Balancer is there as a trigger.
+Buy a cool domain name like `lotsa.fish` (available at the time of this writing!) and put its DNS on [Cloudflare](https://cloudflare.com) (the free plan is fine).
 
-When the application load balancer finally is provisioned you will be able to hit the url listed on its config (something like YourLoadBalancerName-20742898761.us-east-1.elb.amazonaws.com).  You should now be able to access the redirector by hitting YourLoadBalancerName-2072409351.us-east-1.elb.amazonaws.com/**new**, and it should take you to the form.
+Then request a certificate for the domain in the AWS Certificate Manager (ACM), in the same region as your lambda.  Choose DNS validation, and add the CNAME record ACM gives you to your Cloudflare DNS as **DNS only** (grey cloud, not proxied).  Leave that record in place forever; ACM uses it to auto-renew the certificate.
 
-### Step 5: Custom Domain
+### Step 5: Put your Lambda behind a load balancer
 
-Now you can buy a cool domain name like `lotsa.fish` (available at the time of this writing!), and using domain forwarding, have it forward (including the path!) over to your LB url.  Now when you go to `lotsa.fish/new` you can create new URLs.
+At the top of the lambda function configuration page, click the **Add trigger** button and select the "Application Load Balancer" option.  For the load balancer name, click the little blue link above the field to create a new one.  Give it a name, and make sure it is "internet facing".  Configure a single **HTTPS/443** listener using the ACM certificate from step 4 (the default security policy is fine).  You don't need an HTTP/80 listener; Cloudflare will handle http to https redirects.  Choose a new security group.  For Target Group create a new target group with a "target type" of lambda, and select your lambda.  When you are done it will take awhile for the new LB to go from "provisioning" to "active" (10 minutes or more).
 
-### Step 6: Add HTTPS support
+Finally, lock the load balancer's security group down so it only accepts **inbound TCP 443 from [Cloudflare's IP ranges](https://www.cloudflare.com/ips/)** (both the IPv4 and IPv6 lists).  Otherwise internet-wide scanners hit your load balancer directly, and every one of those requests invokes the lambda and reads your sheet.  Cloudflare rarely changes these ranges, but if the site ever starts timing out for no apparent reason, check them first.
 
-You will want to add HTTPS support given increasing demand for it from browsers (e.g. Safari won't follow http links for random domains).  To do this involves three steps:
+### Step 6: Point your domain at the load balancer via Cloudflare
 
-1. **Add an HTTPS listener to our load balancer.**  First, go to the Load Balancer section of the aws console (search for load balancer and click the EC2 Load Balancer feature, not Lightsail).  You should see your load balancer in the list.  Select it and then select the "Listeners" tab.  You should see the HTTP/80 listener.  Add one for HTTPs.  You will need to supply a certificate.  I used the Amazon Certificate Manager (ACM) to create one on my domain (having to verify the domain from Google Domains by emitting a CNAME with a magic value).  You will also need to specify a security policy and you should just be able to use the default.
-2. **Add an HTTPS trigger to our lambda function.**  Now you can go over to your lambda function configuration page, and click **Add trigger** and repeat the process described above in step 4 except this time, of course, specify HTTPS as your trigger.  I entered the host but left the path blank.
-3. **If you are using domain forwarding, making sure HTTPS is forwarded.**  For example on Google Domains, you need to explicitly enable this, as described in [this support article](https://support.google.com/domains/answer/4522141?hl=en).
+In Cloudflare:
+
+1. **DNS:** add a `CNAME` record for `@` (the root of your domain) pointing to your load balancer's DNS name (something like `YourLoadBalancerName-2072409351.us-east-1.elb.amazonaws.com`), with **Proxied** (orange cloud) turned on.  Cloudflare allows a CNAME at the root.
+2. **SSL/TLS:** set the encryption mode to **Full (strict)**.  This makes Cloudflare talk to your load balancer over HTTPS on port 443 and verify its certificate, which works because the ACM certificate is for your domain.  (Don't use "Flexible": it makes Cloudflare connect over plain HTTP on port 80, which the load balancer doesn't listen on.)
+3. **Optional:** turn on **Security > Bots > Bot Fight Mode** to challenge known bots, and **SSL/TLS > Edge Certificates > Always Use HTTPS**.
+
+Now when you go to `https://lotsa.fish/new` you should end up at the form, and you can start creating vanity urls.
+
+Note: an earlier version of this guide used registrar "domain forwarding" to redirect your domain to the raw `http://...elb.amazonaws.com` url.  Don't do that.  Modern browsers upgrade that redirect to https, which fails because the load balancer's certificate is for your domain, not the elb hostname, so links just spin.  Proxying through Cloudflare as described above keeps the browser on `https://yourdomain` the whole time.
 
 
